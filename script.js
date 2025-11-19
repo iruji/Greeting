@@ -1,17 +1,34 @@
-// DOM Elements
+// DOM Elements - Creator View
+const creatorView = document.getElementById('creatorView');
 const nameInput = document.getElementById('nameInput');
 const occasionSelect = document.getElementById('occasionSelect');
 const customMessageBox = document.getElementById('customMessageBox');
 const customMessage = document.getElementById('customMessage');
 const aiGenerateBtn = document.getElementById('aiGenerateBtn');
 const sendBtn = document.getElementById('sendBtn');
-const overlay = document.getElementById('overlay');
-const greetTitle = document.getElementById('greetTitle');
-const greetMessage = document.getElementById('greetMessage');
-const greetHeaderTitle = document.getElementById('greetHeaderTitle');
-const closeBtn = document.getElementById('closeBtn');
+
+// DOM Elements - Card View (for recipients)
+const cardView = document.getElementById('cardView');
+const cardTitle = document.getElementById('cardTitle');
+const cardMessage = document.getElementById('cardMessage');
+const createOwnBtn = document.getElementById('createOwnBtn');
+const confettiContainer = document.getElementById('confetti');
+
+// DOM Elements - Success Modal
+const successOverlay = document.getElementById('successOverlay');
+const closeSuccessBtn = document.getElementById('closeSuccessBtn');
 const loadingSpinner = document.getElementById('loadingSpinner');
-const greetDisplay = document.getElementById('greetDisplay');
+const successDisplay = document.getElementById('successDisplay');
+const previewTitle = document.getElementById('previewTitle');
+const previewMessage = document.getElementById('previewMessage');
+const shareLink = document.getElementById('shareLink');
+const copyLinkBtn = document.getElementById('copyLinkBtn');
+
+// DOM Elements - Social Share
+const shareFacebook = document.getElementById('shareFacebook');
+const shareTwitter = document.getElementById('shareTwitter');
+const shareWhatsApp = document.getElementById('shareWhatsApp');
+const shareMessenger = document.getElementById('shareMessenger');
 
 // Predefined messages for each occasion
 const occasionMessages = {
@@ -82,6 +99,73 @@ const occasionMessages = {
 };
 
 /**
+ * Initialize the app - check if viewing a card or creating one
+ */
+async function init() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const cardId = urlParams.get('card');
+  
+  if (cardId) {
+    // Recipient view - load and display the card
+    await loadCard(cardId);
+  } else {
+    // Creator view - show the form
+    creatorView.classList.remove('hidden');
+  }
+}
+
+/**
+ * Loads a card from storage and displays it
+ * @param {string} cardId - The card ID
+ */
+async function loadCard(cardId) {
+  try {
+    // Use localStorage for MVP (works on localhost)
+    const cardDataString = localStorage.getItem(`card:${cardId}`);
+    
+    if (cardDataString) {
+      const cardData = JSON.parse(cardDataString);
+      
+      // Display the card
+      cardTitle.textContent = `${cardData.title}, ${cardData.name.toUpperCase()}!`;
+      cardMessage.textContent = cardData.message;
+      
+      // Show card view
+      cardView.classList.remove('hidden');
+      creatorView.classList.add('hidden');
+      
+      // Create confetti animation
+      createConfetti();
+    } else {
+      // Card not found
+      alert('Card not found! It may have expired or been deleted.');
+      creatorView.classList.remove('hidden');
+    }
+  } catch (error) {
+    console.error('Error loading card:', error);
+    alert('Unable to load card. Please try again.');
+    creatorView.classList.remove('hidden');
+  }
+}
+
+/**
+ * Creates confetti animation
+ */
+function createConfetti() {
+  const colors = ['#ff0080', '#00d4ff', '#fff200', '#7000ff', '#00ff88'];
+  
+  for (let i = 0; i < 50; i++) {
+    const piece = document.createElement('div');
+    piece.className = 'confetti-piece';
+    piece.style.left = Math.random() * 100 + '%';
+    piece.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+    piece.style.animationDelay = Math.random() * 2 + 's';
+    piece.style.animationDuration = (2 + Math.random() * 2) + 's';
+    confettiContainer.appendChild(piece);
+  }
+}
+
+/**
  * Gets a random message for the selected occasion
  * @param {string} occasion - The occasion type
  * @returns {Object} Object with title and message
@@ -93,6 +177,35 @@ function getRandomMessage(occasion) {
     title: data.title,
     message: randomMsg
   };
+}
+
+/**
+ * Generates a unique card ID
+ * @returns {string} Unique ID
+ */
+function generateCardId() {
+  return 'card_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
+/**
+ * Saves card to storage and returns the shareable URL
+ * @param {Object} cardData - Card data object
+ * @returns {Promise<string>} Shareable URL
+ */
+async function saveCard(cardData) {
+  const cardId = generateCardId();
+  
+  try {
+    // Use localStorage for MVP (works on localhost)
+    localStorage.setItem(`card:${cardId}`, JSON.stringify(cardData));
+    
+    // Generate shareable URL
+    const baseUrl = window.location.origin + window.location.pathname;
+    return `${baseUrl}?card=${cardId}`;
+  } catch (error) {
+    console.error('Error saving card:', error);
+    throw new Error('Failed to save card');
+  }
 }
 
 /**
@@ -151,11 +264,8 @@ Return ONLY a JSON object with this exact structure (no markdown, no backticks):
  * Shows or hides custom message box based on occasion selection
  */
 function toggleCustomMessageBox() {
-  if (occasionSelect.value === 'custom') {
-    customMessageBox.classList.remove('hidden');
-  } else {
-    customMessageBox.classList.add('hidden');
-  }
+  // Custom message box is always visible now
+  // This function can be removed or kept for future use
 }
 
 /**
@@ -171,108 +281,207 @@ function validateInput() {
     return false;
   }
   
-  if (occasionSelect.value === 'custom' && !customMessage.value.trim()) {
-    alert('Please write a custom message!');
-    customMessage.focus();
-    return false;
-  }
-  
   return true;
 }
 
 /**
- * Opens the greeting modal with AI-generated message
+ * Creates a card with AI-generated message
  */
-async function openAIGreeting() {
+async function createAICard() {
   if (!validateInput()) return;
   
   const name = nameInput.value.trim();
   const occasion = occasionSelect.value;
   
-  // Handle custom message
-  if (occasion === 'custom') {
-    greetHeaderTitle.textContent = '♥ YOUR MESSAGE ♥';
-    greetTitle.textContent = name.toUpperCase();
-    greetMessage.textContent = customMessage.value.trim();
-    
-    overlay.classList.add('show');
-    loadingSpinner.classList.add('hidden');
-    greetDisplay.classList.remove('hidden');
-    return;
-  }
-  
   // Show modal with loading state
-  overlay.classList.add('show');
+  successOverlay.classList.add('show');
   loadingSpinner.classList.remove('hidden');
-  greetDisplay.classList.add('hidden');
+  successDisplay.classList.add('hidden');
   
   // Generate AI message
   const result = await generateAIMessage(name, occasion);
+  const cardData = {
+    name: name,
+    title: result.title,
+    message: result.message
+  };
   
-  // Update content
-  greetHeaderTitle.textContent = '♥ AI GENERATED ♥';
-  greetTitle.textContent = `${result.title}, ${name.toUpperCase()}!`;
-  greetMessage.textContent = result.message;
-  
-  // Show result
-  loadingSpinner.classList.add('hidden');
-  greetDisplay.classList.remove('hidden');
+  // Save card and get shareable link
+  try {
+    const url = await saveCard(cardData);
+    
+    // Update preview
+    previewTitle.textContent = `${cardData.title}, ${cardData.name.toUpperCase()}!`;
+    previewMessage.textContent = cardData.message;
+    shareLink.value = url;
+    
+    // Show success view
+    loadingSpinner.classList.add('hidden');
+    successDisplay.classList.remove('hidden');
+  } catch (error) {
+    alert('Failed to create card. Please try again.');
+    successOverlay.classList.remove('show');
+  }
 }
 
 /**
- * Opens the greeting modal with random predefined message
+ * Creates a card with random predefined message or custom message
  */
-function openRandomGreeting() {
+async function createRandomCard() {
   if (!validateInput()) return;
   
   const name = nameInput.value.trim();
   const occasion = occasionSelect.value;
+  const customMsg = customMessage.value.trim();
   
-  // Handle custom message
-  if (occasion === 'custom') {
-    greetHeaderTitle.textContent = '♥ YOUR MESSAGE ♥';
-    greetTitle.textContent = name.toUpperCase();
-    greetMessage.textContent = customMessage.value.trim();
+  let cardData;
+  
+  // If user wrote a custom message, use that
+  if (customMsg) {
+    cardData = {
+      name: name,
+      title: 'SPECIAL MESSAGE',
+      message: customMsg
+    };
   } else {
-    // Use random predefined message
+    // Otherwise use random predefined message based on occasion
     const result = getRandomMessage(occasion);
-    greetHeaderTitle.textContent = '♥ YOUR GREETING ♥';
-    greetTitle.textContent = `${result.title}, ${name.toUpperCase()}!`;
-    greetMessage.textContent = result.message;
+    cardData = {
+      name: name,
+      title: result.title,
+      message: result.message
+    };
   }
   
-  overlay.classList.add('show');
-  loadingSpinner.classList.add('hidden');
-  greetDisplay.classList.remove('hidden');
-}
-
-/**
- * Closes the greeting modal
- */
-function closeGreeting() {
-  overlay.classList.remove('show');
-}
-
-/**
- * Handles click outside modal to close
- * @param {Event} e - Click event
- */
-function handleOverlayClick(e) {
-  if (e.target === overlay) {
-    closeGreeting();
+  // Save card and get shareable link
+  try {
+    const url = await saveCard(cardData);
+    
+    // Update preview
+    previewTitle.textContent = `${cardData.title}, ${cardData.name.toUpperCase()}!`;
+    previewMessage.textContent = cardData.message;
+    shareLink.value = url;
+    
+    // Show success modal
+    successOverlay.classList.add('show');
+    loadingSpinner.classList.add('hidden');
+    successDisplay.classList.remove('hidden');
+  } catch (error) {
+    alert('Failed to create card. Please try again.');
   }
+}
+
+/**
+ * Copies the shareable link to clipboard
+ */
+async function copyLink() {
+  try {
+    await navigator.clipboard.writeText(shareLink.value);
+    
+    // Visual feedback
+    const originalText = copyLinkBtn.textContent;
+    copyLinkBtn.textContent = '✓ Copied!';
+    copyLinkBtn.classList.add('copied');
+    
+    setTimeout(() => {
+      copyLinkBtn.textContent = originalText;
+      copyLinkBtn.classList.remove('copied');
+    }, 2000);
+  } catch (error) {
+    // Fallback: select the text
+    shareLink.select();
+    alert('Link copied! You can now paste it anywhere.');
+  }
+}
+
+/**
+ * Share to Facebook
+ */
+function shareToFacebook() {
+  const url = encodeURIComponent(shareLink.value);
+  const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
+  window.open(facebookUrl, '_blank', 'width=600,height=400');
+}
+
+/**
+ * Share to Twitter/X
+ */
+function shareToTwitter() {
+  const url = encodeURIComponent(shareLink.value);
+  const text = encodeURIComponent('Check out this awesome greeting card I made! 🎉');
+  const twitterUrl = `https://twitter.com/intent/tweet?text=${text}&url=${url}`;
+  window.open(twitterUrl, '_blank', 'width=600,height=400');
+}
+
+/**
+ * Share to WhatsApp
+ */
+function shareToWhatsApp() {
+  const url = encodeURIComponent(shareLink.value);
+  const text = encodeURIComponent('Check out this greeting card I made for you! 🎉 ');
+  const whatsappUrl = `https://wa.me/?text=${text}${url}`;
+  window.open(whatsappUrl, '_blank');
+}
+
+/**
+ * Share to Messenger
+ */
+function shareToMessenger() {
+  const url = encodeURIComponent(shareLink.value);
+  const messengerUrl = `https://www.facebook.com/dialog/send?link=${url}&app_id=YOUR_APP_ID&redirect_uri=${encodeURIComponent(window.location.href)}`;
+  // Note: Messenger sharing requires a Facebook App ID for full functionality
+  // Fallback to Facebook share
+  shareToFacebook();
+}
+
+/**
+ * Closes the success modal
+ */
+function closeSuccess() {
+  successOverlay.classList.remove('show');
+}
+
+/**
+ * Returns to creator view from card view
+ */
+function goToCreator() {
+  window.location.href = window.location.pathname;
 }
 
 // Event Listeners
 occasionSelect.addEventListener('change', toggleCustomMessageBox);
-aiGenerateBtn.addEventListener('click', openAIGreeting);
-sendBtn.addEventListener('click', openRandomGreeting);
-closeBtn.addEventListener('click', closeGreeting);
-overlay.addEventListener('click', handleOverlayClick);
+aiGenerateBtn.addEventListener('click', createAICard);
+sendBtn.addEventListener('click', createRandomCard);
+closeSuccessBtn.addEventListener('click', closeSuccess);
+copyLinkBtn.addEventListener('click', copyLink);
+createOwnBtn.addEventListener('click', goToCreator);
+
+// Social share buttons
+shareFacebook.addEventListener('click', shareToFacebook);
+shareTwitter.addEventListener('click', shareToTwitter);
+shareWhatsApp.addEventListener('click', shareWhatsApp);
+shareMessenger.addEventListener('click', shareToMessenger);
+
+// Close modal on overlay click
+successOverlay.addEventListener('click', (e) => {
+  if (e.target === successOverlay) {
+    closeSuccess();
+  }
+});
+
+// ESC key to close modal
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && successOverlay.classList.contains('show')) {
+    closeSuccess();
+  }
+});
 
 // Enter key support for name input
 nameInput.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') {
-    openRandomGreeting();
+    createRandomCard();
   }
 });
+
+// Initialize the app
+init();
